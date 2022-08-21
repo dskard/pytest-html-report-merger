@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "pytest_html_report_merger"
+version = "0.1.0"
+description = ""
+authors = ["dskard"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+beautifulsoup4 = "^4.11.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.6.0"
+pytest = "^7.1.2"
+pdbpp = "^0.10.3"
+
+[tool.poetry.scripts]
+pytest-html-report-merger = "pytest_html_report_merger.__main__:cli"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
