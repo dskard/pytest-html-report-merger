@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytest_html_report_merger"
-version = "0.1.0"
+version = "0.0.0"
 description = ""
 authors = ["dskard"]
 license = "MIT"
@@ -13,9 +13,23 @@ beautifulsoup4 = "^4.11.1"
 black = "^22.6.0"
 pytest = "^7.1.2"
 pdbpp = "^0.10.3"
+python-semantic-release = "^7.31.4"
 
 [tool.poetry.scripts]
 pytest-html-report-merger = "pytest_html_report_merger.__main__:cli"
+
+[tool.semantic_release]
+version_variable = [
+    "src/pytest_html_report_merger/__init__.py:__version__"
+]
+version_toml = [
+    "pyproject.toml:tool.poetry.version"
+]
+major_on_zero = false
+branch = "main"
+upload_to_PyPI = true
+upload_to_release = true
+build_command = "pip install poetry && poetry build"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
