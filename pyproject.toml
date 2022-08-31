@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytest_html_report_merger"
-version = "0.0.0"
+version = "0.0.1"
 description = ""
 authors = ["dskard"]
 license = "MIT"
