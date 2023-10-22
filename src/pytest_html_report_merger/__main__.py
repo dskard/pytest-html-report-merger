@@ -57,11 +57,9 @@ class PytestHTMLReportMerger:
 
         minutes, seconds = divmod(td.total_seconds(), 60)
         hours, minutes = divmod(minutes, 60)
-        return '{:02d}:{:02d}:{:02d}'.format(int(hours), int(minutes), int(seconds))
-
+        return "{:02d}:{:02d}:{:02d}".format(int(hours), int(minutes), int(seconds))
 
     def process_report(self, report_path):
-
         # open the first html file
         html_doc = ""
         with open(report_path, "r") as f:
@@ -72,7 +70,6 @@ class PytestHTMLReportMerger:
 
         # update the base report
         if self.base is None:
-
             # this is the first report
             self.base = copy.copy(soup)
 
@@ -106,17 +103,25 @@ class PytestHTMLReportMerger:
 
         # parse the number of tests and timings from the base report
         base_element = self.base.select(".run-count")[0]
-        matches = re.search(r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", base_element.string)
+        matches = re.search(
+            r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", base_element.string
+        )
         base_total_tests = int(matches.groups()[0])
-        (t_hour, t_minute, t_second)  = matches.groups()[1:4]
-        base_total_time_delta = datetime.timedelta(hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second))
+        (t_hour, t_minute, t_second) = matches.groups()[1:4]
+        base_total_time_delta = datetime.timedelta(
+            hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second)
+        )
 
         # parse the number of tests and timings from the provided report
         soup_element = soup.select(".run-count")[0]
-        matches = re.search(r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", soup_element.string)
+        matches = re.search(
+            r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", soup_element.string
+        )
         soup_total_tests = int(matches.groups()[0])
-        (t_hour, t_minute, t_second)  = matches.groups()[1:4]
-        soup_total_time_delta = datetime.timedelta(hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second))
+        (t_hour, t_minute, t_second) = matches.groups()[1:4]
+        soup_total_time_delta = datetime.timedelta(
+            hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second)
+        )
 
         # sum up the test count and time deltas
         total_tests = base_total_tests + soup_total_tests
@@ -139,12 +144,12 @@ class PytestHTMLReportMerger:
         ]:
             # find the base's value for the key
             base_elements = self.base.select(f".filters .{key}")
-            matches = re.search("(\d+)", base_elements[0].string)
+            matches = re.search(r"(\d+)", base_elements[0].string)
             base_value = int(matches.groups()[0])
 
             # find the soup's value for the key
             soup_elements = soup.select(f".filters .{key}")
-            matches = re.search("(\d+)", soup_elements[0].string)
+            matches = re.search(r"(\d+)", soup_elements[0].string)
             soup_value = int(matches.groups()[0])
 
             # save the updated count to the base
@@ -177,13 +182,12 @@ class PytestHTMLReportMerger:
         soup_data["tests"] = d
 
         # copy the tests from the provided report to the base report
-        base_data['tests'] = base_data['tests'] | soup_data['tests']
+        base_data["tests"] = base_data["tests"] | soup_data["tests"]
 
         # write the tests json data back to the html element's attribute
-        base_data_container['data-jsonblob'] = json.dumps(base_data)
+        base_data_container["data-jsonblob"] = json.dumps(base_data)
 
     def write_report(self, report_path):
-
         report_name = os.path.basename(report_path)
 
         # reset the title in the <head><title> element
@@ -200,18 +204,17 @@ class PytestHTMLReportMerger:
         base_data = json.loads(base_jsonblob)
 
         # reset the title in the footer's data-jsonblob
-        base_data['title'] = report_name
+        base_data["title"] = report_name
 
         # write the json data back to the html element's attribute
-        base_data_container['data-jsonblob'] = json.dumps(base_data)
+        base_data_container["data-jsonblob"] = json.dumps(base_data)
 
         # write to file
-        with open(report_path, "w", encoding = 'utf-8') as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(str(self.base.prettify(formatter="html5")))
 
 
 def main(arguments):
-
     # create a report merger object
     report_merger = PytestHTMLReportMerger()
 
@@ -224,7 +227,6 @@ def main(arguments):
 
 
 def cli():
-
     arguments = parse_arguments()
 
     logging.basicConfig(level=int((6 - arguments.verbose) * 10))

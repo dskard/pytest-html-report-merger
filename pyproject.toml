@@ -6,14 +6,15 @@ authors = ["dskard"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 beautifulsoup4 = "^4.11.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 black = "^22.6.0"
 pytest = "^7.1.2"
 pdbpp = "^0.10.3"
 python-semantic-release = "^7.31.4"
+pre-commit = "^3.5.0"
 
 [tool.poetry.scripts]
 pytest-html-report-merger = "pytest_html_report_merger.__main__:cli"
