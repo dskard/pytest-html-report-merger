@@ -1,7 +1,9 @@
 import argparse
-import logging
 import bs4
 import copy
+import datetime
+import json
+import logging
 import os
 import re
 
@@ -47,8 +49,17 @@ class PytestHTMLReportMerger:
     def __init__(self):
         self.base = None
 
-    def process_report(self, report_path):
+    def _format_time(self, td):
+        """convert timedelta to HH:MM:SS
 
+        based on https://stackoverflow.com/a/28503916
+        """
+
+        minutes, seconds = divmod(td.total_seconds(), 60)
+        hours, minutes = divmod(minutes, 60)
+        return "{:02d}:{:02d}:{:02d}".format(int(hours), int(minutes), int(seconds))
+
+    def process_report(self, report_path):
         # open the first html file
         html_doc = ""
         with open(report_path, "r") as f:
@@ -59,54 +70,68 @@ class PytestHTMLReportMerger:
 
         # update the base report
         if self.base is None:
-
             # this is the first report
             self.base = copy.copy(soup)
 
-            # add a sortable column for report name
-            col_report = self.base.new_tag(
-                "th", attrs={"class": "sortable", "col": "report"}
-            )
-            col_report.string = "Report"
+            # load json data from the base report
+            base_data_container = self.base.select("#data-container")[0]
+            base_jsonblob = base_data_container.get("data-jsonblob")
+            base_data = json.loads(base_jsonblob)
 
-            results_table_head = self.base.select(
-                "#results-table-head tr:nth-child(1)"
-            )[0]
-            results_table_head.append(col_report)
+            # update the keys to include the report name
+            # this will make sure the keys are unique as we add more reports.
+            d = {
+                f"{key} - {report_name}": value
+                for key, value in base_data["tests"].items()
+            }
+            base_data["tests"] = d
 
-            # add the report column to each result table item
-            # expand the details row colspan to accomodate the new column
-            for ele in self.base.select(".results-table-row"):
-                # create the new column
-                col_report = self.base.new_tag("td", attrs={"class": "col-report"})
-                col_report.string = report_name
-                # add it to the first row
-                ele_row_1 = ele.select("tr:nth-child(1)")[0]
-                ele_row_1.append(col_report)
-                # adjust the second row colspan
-                ele_row_2 = ele.select("tr:nth-child(2) .extra")[0]
-                ele_row_2["colspan"] = str(int(ele_row_2["colspan"]) + 1)
+            # write the json data back to the html element's attribute
+            base_data_container["data-jsonblob"] = json.dumps(base_data)
 
             return
 
         # parse the summary
 
-        # parse the number of tests and timings
-        base_element = self.base.find("p", string=re.compile("tests ran in"))
-        matches = re.search(r"(\d+) tests ran in (\d+(\.\d+)?)", base_element.string)
+        # it would be nice if we could pull the Hours:Minutes:Seconds out of
+        # the summary string, but pytest-html has a bug in _format_duration()
+        # that allows the seconds to be 60, which datetime.datetime.strptime()
+        # cannot parse. when that gets fixed, we can use lines like these
+        # matches = re.search(r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", base_element.string)
+        # base_total_time_str = matches.groups()[1]
+        # t = datetime.datetime.strptime(base_total_time_str,"%H:%M:%S")
+
+        # parse the number of tests and timings from the base report
+        base_element = self.base.select(".run-count")[0]
+        matches = re.search(
+            r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", base_element.string
+        )
         base_total_tests = int(matches.groups()[0])
-        base_total_time = float(matches.groups()[1])
+        (t_hour, t_minute, t_second) = matches.groups()[1:4]
+        base_total_time_delta = datetime.timedelta(
+            hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second)
+        )
 
-        soup_element = soup.find("p", string=re.compile("tests ran in"))
-        matches = re.search(r"(\d+) tests ran in (\d+(\.\d+)?)", soup_element.string)
+        # parse the number of tests and timings from the provided report
+        soup_element = soup.select(".run-count")[0]
+        matches = re.search(
+            r"(\d+) tests took (\d{2}):(\d{2}):(\d{2})", soup_element.string
+        )
         soup_total_tests = int(matches.groups()[0])
-        soup_total_time = float(matches.groups()[1])
+        (t_hour, t_minute, t_second) = matches.groups()[1:4]
+        soup_total_time_delta = datetime.timedelta(
+            hours=int(t_hour), minutes=int(t_minute), seconds=int(t_second)
+        )
 
+        # sum up the test count and time deltas
         total_tests = base_total_tests + soup_total_tests
-        total_time = base_total_time + soup_total_time
-        base_element.string = f"{total_tests} tests ran in {total_time} seconds."
+        total_time_delta = base_total_time_delta + soup_total_time_delta
+        total_time_str = self._format_time(total_time_delta)
 
-        # parse the counts
+        # save the updated total tests and total time.
+        base_element.string = f"{total_tests} tests took {total_time_str}."
+
+        # parse the filter counts
 
         for key in [
             "passed",
@@ -118,13 +143,13 @@ class PytestHTMLReportMerger:
             "rerun",
         ]:
             # find the base's value for the key
-            base_elements = self.base.select(f"span.{key}")
-            matches = re.search("(\d+)", base_elements[0].string)
+            base_elements = self.base.select(f".filters .{key}")
+            matches = re.search(r"(\d+)", base_elements[0].string)
             base_value = int(matches.groups()[0])
 
             # find the soup's value for the key
-            soup_elements = soup.select(f"span.{key}")
-            matches = re.search("(\d+)", soup_elements[0].string)
+            soup_elements = soup.select(f".filters .{key}")
+            matches = re.search(r"(\d+)", soup_elements[0].string)
             soup_value = int(matches.groups()[0])
 
             # save the updated count to the base
@@ -132,43 +157,64 @@ class PytestHTMLReportMerger:
                 r"\d+", str(base_value + soup_value), base_elements[0].string
             )
 
-            # remove the base's disabled filter
-            if base_value == 0 and soup_value != 0:
+            # remove the base's disabled filter if the soup value was not zero
+            if base_value == 0 and soup_value > 0:
                 ele = self.base.select(f"[data-test-result='{key}']")[0]
                 del ele["disabled"]
 
         # update the base report's results table
-        base_results_table = self.base.select("#results-table")[0]
-        soup_tbodys = soup.select("#results-table tbody")
 
-        for ele in soup_tbodys:
-            ele_copy = copy.copy(ele)
+        # load json data from the base report
+        base_data_container = self.base.select("#data-container")[0]
+        base_jsonblob = base_data_container.get("data-jsonblob")
+        base_data = json.loads(base_jsonblob)
 
-            # add the report column
-            ele_copy_tr = ele_copy.select("tr:nth-child(1)")[0]
-            col_report = self.base.new_tag("td", attrs={"class": "col-report"})
-            col_report.string = report_name
-            ele_copy_tr.append(col_report)
+        # load json data from the provided report
+        soup_data_container = soup.select("#data-container")[0]
+        soup_jsonblob = soup_data_container.get("data-jsonblob")
+        soup_data = json.loads(soup_jsonblob)
 
-            # adjust the second row colspan
-            ele_row_2 = ele_copy.select("tr:nth-child(2) .extra")[0]
-            ele_row_2["colspan"] = str(int(ele_row_2["colspan"]) + 1)
+        # update the keys to include the report name
+        # this will make sure the keys are unique as we add more reports.
+        d = {
+            f"{key} - {report_name}": value for key, value in soup_data["tests"].items()
+        }
+        soup_data["tests"] = d
 
-            # add the copied element to the base
-            base_results_table.append(ele_copy)
+        # copy the tests from the provided report to the base report
+        base_data["tests"] = base_data["tests"] | soup_data["tests"]
+
+        # write the tests json data back to the html element's attribute
+        base_data_container["data-jsonblob"] = json.dumps(base_data)
 
     def write_report(self, report_path):
-        # update report header
-        report_header = os.path.basename(report_path)
-        self.base.h1.string = report_header
+        report_name = os.path.basename(report_path)
+
+        # reset the title in the <head><title> element
+        ele = self.base.select("#head-title")[0]
+        ele.string = report_name
+
+        # reset the title in the <body><h1> element
+        ele = self.base.select("#title")[0]
+        ele.string = report_name
+
+        # load json data from the base report
+        base_data_container = self.base.select("#data-container")[0]
+        base_jsonblob = base_data_container.get("data-jsonblob")
+        base_data = json.loads(base_jsonblob)
+
+        # reset the title in the footer's data-jsonblob
+        base_data["title"] = report_name
+
+        # write the json data back to the html element's attribute
+        base_data_container["data-jsonblob"] = json.dumps(base_data)
 
         # write to file
-        with open(report_path, "w") as f:
-            f.write(str(self.base))
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(str(self.base.prettify(formatter="html5")))
 
 
 def main(arguments):
-
     # create a report merger object
     report_merger = PytestHTMLReportMerger()
 
@@ -181,7 +227,6 @@ def main(arguments):
 
 
 def cli():
-
     arguments = parse_arguments()
 
     logging.basicConfig(level=int((6 - arguments.verbose) * 10))
