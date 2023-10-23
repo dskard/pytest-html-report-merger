@@ -2,6 +2,13 @@
 
 
 
+## v0.1.1 (2023-10-23)
+
+### Fix
+
+* fix: update github workflow for releases ([`387b1be`](https://github.com/dskard/pytest-html-report-merger/commit/387b1be6964c632b6ec79e11398f7d1aa40c20b4))
+
+
 ## v0.1.0 (2023-10-23)
 
 ### Breaking
