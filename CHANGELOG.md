@@ -2,6 +2,13 @@
 
 
 
+## v0.1.2 (2023-10-23)
+
+### Fix
+
+* fix: set `readme` in pyproject.toml for pypi&#39;s long description ([`25a7ecb`](https://github.com/dskard/pytest-html-report-merger/commit/25a7ecb97faa735ac2d077087ad9792cb039d4a8))
+
+
 ## v0.1.1 (2023-10-23)
 
 ### Fix
